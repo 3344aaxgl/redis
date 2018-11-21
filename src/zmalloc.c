@@ -70,13 +70,13 @@ void zlibc_free(void *ptr) {
 #define mallocx(size,flags) je_mallocx(size,flags)
 #define dallocx(ptr,flags) je_dallocx(ptr,flags)
 #endif
-
+//向上取4的倍数，然后原子操作增加内存使用数
 #define update_zmalloc_stat_alloc(__n) do { \
     size_t _n = (__n); \
     if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \
     atomicIncr(used_memory,__n); \
 } while(0)
-
+//向上取4的倍数，然后原子操作减少内存使用数
 #define update_zmalloc_stat_free(__n) do { \
     size_t _n = (__n); \
     if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \
@@ -85,7 +85,7 @@ void zlibc_free(void *ptr) {
 
 static size_t used_memory = 0;
 pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+//空间不足出错函数
 static void zmalloc_default_oom(size_t size) {
     fprintf(stderr, "zmalloc: Out of memory trying to allocate %zu bytes\n",
         size);
@@ -96,16 +96,16 @@ static void zmalloc_default_oom(size_t size) {
 static void (*zmalloc_oom_handler)(size_t) = zmalloc_default_oom;
 
 void *zmalloc(size_t size) {
-    void *ptr = malloc(size+PREFIX_SIZE);
+    void *ptr = malloc(size+PREFIX_SIZE);//多分配一个size_t大小空间记录空间大小
 
     if (!ptr) zmalloc_oom_handler(size);
 #ifdef HAVE_MALLOC_SIZE
     update_zmalloc_stat_alloc(zmalloc_size(ptr));
     return ptr;
 #else
-    *((size_t*)ptr) = size;
+    *((size_t*)ptr) = size;//记录空间大小
     update_zmalloc_stat_alloc(size+PREFIX_SIZE);
-    return (char*)ptr+PREFIX_SIZE;
+    return (char*)ptr+PREFIX_SIZE;//返回存储数据的首地址
 #endif
 }
 
@@ -127,7 +127,7 @@ void zfree_no_tcache(void *ptr) {
 }
 #endif
 
-void *zcalloc(size_t size) {
+void *zcalloc(size_t size) {//分配空间并初始化
     void *ptr = calloc(1, size+PREFIX_SIZE);
 
     if (!ptr) zmalloc_oom_handler(size);
@@ -141,7 +141,7 @@ void *zcalloc(size_t size) {
 #endif
 }
 
-void *zrealloc(void *ptr, size_t size) {
+void *zrealloc(void *ptr, size_t size) {//再分配
 #ifndef HAVE_MALLOC_SIZE
     void *realptr;
 #endif
@@ -161,10 +161,10 @@ void *zrealloc(void *ptr, size_t size) {
     realptr = (char*)ptr-PREFIX_SIZE;
     oldsize = *((size_t*)realptr);
     newptr = realloc(realptr,size+PREFIX_SIZE);
-    if (!newptr) zmalloc_oom_handler(size);
+    if (!newptr) zmalloc_oom_handler(size);//分配出错
 
     *((size_t*)newptr) = size;
-    update_zmalloc_stat_free(oldsize+PREFIX_SIZE);
+    update_zmalloc_stat_free(oldsize+PREFIX_SIZE);//更新内存使用情况
     update_zmalloc_stat_alloc(size+PREFIX_SIZE);
     return (char*)newptr+PREFIX_SIZE;
 #endif
@@ -174,7 +174,7 @@ void *zrealloc(void *ptr, size_t size) {
  * malloc itself, given that in that case we store a header with this
  * information as the first bytes of every allocation. */
 #ifndef HAVE_MALLOC_SIZE
-size_t zmalloc_size(void *ptr) {
+size_t zmalloc_size(void *ptr) {//返回空间大小
     void *realptr = (char*)ptr-PREFIX_SIZE;
     size_t size = *((size_t*)realptr);
     /* Assume at least that all the allocations are padded at sizeof(long) by
@@ -187,7 +187,7 @@ size_t zmalloc_usable(void *ptr) {
 }
 #endif
 
-void zfree(void *ptr) {
+void zfree(void *ptr) {//释放空间
 #ifndef HAVE_MALLOC_SIZE
     void *realptr;
     size_t oldsize;
@@ -198,14 +198,14 @@ void zfree(void *ptr) {
     update_zmalloc_stat_free(zmalloc_size(ptr));
     free(ptr);
 #else
-    realptr = (char*)ptr-PREFIX_SIZE;
+    realptr = (char*)ptr-PREFIX_SIZE;//回退到分配空间首地址
     oldsize = *((size_t*)realptr);
     update_zmalloc_stat_free(oldsize+PREFIX_SIZE);
     free(realptr);
 #endif
 }
 
-char *zstrdup(const char *s) {
+char *zstrdup(const char *s) {//字符串复制
     size_t l = strlen(s)+1;
     char *p = zmalloc(l);
 
@@ -213,13 +213,13 @@ char *zstrdup(const char *s) {
     return p;
 }
 
-size_t zmalloc_used_memory(void) {
+size_t zmalloc_used_memory(void) {//返回内存使用情况
     size_t um;
     atomicGet(used_memory,um);
     return um;
 }
 
-void zmalloc_set_oom_handler(void (*oom_handler)(size_t)) {
+void zmalloc_set_oom_handler(void (*oom_handler)(size_t)) {//设置内存出错处理函数，类似set_new_handler
     zmalloc_oom_handler = oom_handler;
 }
 
@@ -239,7 +239,7 @@ void zmalloc_set_oom_handler(void (*oom_handler)(size_t)) {
 #include <sys/stat.h>
 #include <fcntl.h>
 
-size_t zmalloc_get_rss(void) {
+size_t zmalloc_get_rss(void) {//读取进程状态文件信息，获取该任务当前驻留物理地址大小
     int page = sysconf(_SC_PAGESIZE);
     size_t rss;
     char buf[4096];
