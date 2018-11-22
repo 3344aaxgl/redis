@@ -151,7 +151,7 @@ static inline void sdssetlen(sds s, size_t newlen) {
     }
 }
 
-static inline void sdsinclen(sds s, size_t inc) {
+static inline void sdsinclen(sds s, size_t inc) {//增加长度值
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
         case SDS_TYPE_5:
