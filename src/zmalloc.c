@@ -279,7 +279,7 @@ size_t zmalloc_get_rss(void) {//读取进程状态文件信息，获取该任务
 #include <mach/task.h>
 #include <mach/mach_init.h>
 
-size_t zmalloc_get_rss(void) {
+size_t zmalloc_get_rss(void) {//mac获取进程所占物理内存
     task_t task = MACH_PORT_NULL;
     struct task_basic_info t_info;
     mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
@@ -291,7 +291,7 @@ size_t zmalloc_get_rss(void) {
     return t_info.resident_size;
 }
 #else
-size_t zmalloc_get_rss(void) {
+size_t zmalloc_get_rss(void) {//返回分配的内存大小
     /* If we can't get the RSS in an OS-specific way for this system just
      * return the memory usage we estimated in zmalloc()..
      *
@@ -314,13 +314,13 @@ int zmalloc_get_allocator_info(size_t *allocated,
     sz = sizeof(size_t);
     /* Unlike RSS, this does not include RSS from shared libraries and other non
      * heap mappings. */
-    je_mallctl("stats.resident", resident, &sz, NULL, 0);
+    je_mallctl("stats.resident", resident, &sz, NULL, 0);//常驻内存
     /* Unlike resident, this doesn't not include the pages jemalloc reserves
      * for re-use (purge will clean that). */
     je_mallctl("stats.active", active, &sz, NULL, 0);
     /* Unlike zmalloc_used_memory, this matches the stats.resident by taking
      * into account all allocations done by this process (not only zmalloc). */
-    je_mallctl("stats.allocated", allocated, &sz, NULL, 0);
+    je_mallctl("stats.allocated", allocated, &sz, NULL, 0);//所有分配的内存空间
     return 1;
 }
 #else
@@ -343,7 +343,7 @@ int zmalloc_get_allocator_info(size_t *allocated,
  * Example: zmalloc_get_smap_bytes_by_field("Rss:",-1);
  */
 #if defined(HAVE_PROC_SMAPS)
-size_t zmalloc_get_smap_bytes_by_field(char *field, long pid) {
+size_t zmalloc_get_smap_bytes_by_field(char *field, long pid) {//获取smaps文件信息
     char line[1024];
     size_t bytes = 0;
     int flen = strlen(field);
@@ -360,7 +360,7 @@ size_t zmalloc_get_smap_bytes_by_field(char *field, long pid) {
     if (!fp) return 0;
     while(fgets(line,sizeof(line),fp) != NULL) {
         if (strncmp(line,field,flen) == 0) {
-            char *p = strchr(line,'k');
+            char *p = strchr(line,'k');//kb结尾
             if (p) {
                 *p = '\0';
                 bytes += strtol(line+flen,NULL,10) * 1024;
@@ -379,7 +379,7 @@ size_t zmalloc_get_smap_bytes_by_field(char *field, long pid) {
 #endif
 
 size_t zmalloc_get_private_dirty(long pid) {
-    return zmalloc_get_smap_bytes_by_field("Private_Dirty:",pid);
+    return zmalloc_get_smap_bytes_by_field("Private_Dirty:",pid);//被改写的私有页面大小
 }
 
 /* Returns the size of physical memory (RAM) in bytes.
@@ -395,7 +395,7 @@ size_t zmalloc_get_private_dirty(long pid) {
  * 3) Was modified for Redis by Matt Stancliff.
  * 4) This note exists in order to comply with the original license.
  */
-size_t zmalloc_get_memory_size(void) {
+size_t zmalloc_get_memory_size(void) {//得到系统物理内存大小
 #if defined(__unix__) || defined(__unix) || defined(unix) || \
     (defined(__APPLE__) && defined(__MACH__))
 #if defined(CTL_HW) && (defined(HW_MEMSIZE) || defined(HW_PHYSMEM64))
