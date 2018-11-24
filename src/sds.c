@@ -873,7 +873,7 @@ void sdsfreesplitres(sds *tokens, int count) {//释放拆分结果的空间
  *
  * After the call, the modified sds string is no longer valid and all the
  * references must be substituted with the new pointer returned by the call. */
-sds sdscatrepr(sds s, const char *p, size_t len) {
+sds sdscatrepr(sds s, const char *p, size_t len) {//增加字符，同时处理不可打印
     s = sdscatlen(s,"\"",1);
     while(len--) {
         switch(*p) {
@@ -900,14 +900,14 @@ sds sdscatrepr(sds s, const char *p, size_t len) {
 
 /* Helper function for sdssplitargs() that returns non zero if 'c'
  * is a valid hex digit. */
-int is_hex_digit(char c) {
+int is_hex_digit(char c) {//是否是16进制
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
            (c >= 'A' && c <= 'F');
 }
 
 /* Helper function for sdssplitargs() that converts a hex digit into an
  * integer from 0 to 15 */
-int hex_digit_to_int(char c) {
+int hex_digit_to_int(char c) {//16进制转int
     switch(c) {
     case '0': return 0;
     case '1': return 1;
@@ -948,7 +948,7 @@ int hex_digit_to_int(char c) {
  * quotes or closed quotes followed by non space characters
  * as in: "foo"bar or "foo'
  */
-sds *sdssplitargs(const char *line, int *argc) {
+sds *sdssplitargs(const char *line, int *argc) {//将以空格分割的字符串拆分
     const char *p = line;
     char *current = NULL;
     char **vector = NULL;
@@ -956,7 +956,7 @@ sds *sdssplitargs(const char *line, int *argc) {
     *argc = 0;
     while(1) {
         /* skip blanks */
-        while(*p && isspace(*p)) p++;
+        while(*p && isspace(*p)) p++;//跳过空格
         if (*p) {
             /* get a token */
             int inq=0;  /* set to 1 if we are in "quotes" */
@@ -968,15 +968,15 @@ sds *sdssplitargs(const char *line, int *argc) {
                 if (inq) {
                     if (*p == '\\' && *(p+1) == 'x' &&
                                              is_hex_digit(*(p+2)) &&
-                                             is_hex_digit(*(p+3)))
+                                             is_hex_digit(*(p+3)))//16进制数据
                     {
                         unsigned char byte;
 
                         byte = (hex_digit_to_int(*(p+2))*16)+
                                 hex_digit_to_int(*(p+3));
-                        current = sdscatlen(current,(char*)&byte,1);
+                        current = sdscatlen(current,(char*)&byte,1);//16进制转成10进制
                         p += 3;
-                    } else if (*p == '\\' && *(p+1)) {
+                    } else if (*p == '\\' && *(p+1)) {//转回不可打印字符
                         char c;
 
                         p++;
@@ -989,7 +989,7 @@ sds *sdssplitargs(const char *line, int *argc) {
                         default: c = *p; break;
                         }
                         current = sdscatlen(current,&c,1);
-                    } else if (*p == '"') {
+                    } else if (*p == '"') {//结束引号后要么为空格要么结束
                         /* closing quote must be followed by a space or
                          * nothing at all. */
                         if (*(p+1) && !isspace(*(p+1))) goto err;
@@ -1001,7 +1001,7 @@ sds *sdssplitargs(const char *line, int *argc) {
                         current = sdscatlen(current,p,1);
                     }
                 } else if (insq) {
-                    if (*p == '\\' && *(p+1) == '\'') {
+                    if (*p == '\\' && *(p+1) == '\'') {//单引号意味着一个字符
                         p++;
                         current = sdscatlen(current,"'",1);
                     } else if (*p == '\'') {
@@ -1012,7 +1012,7 @@ sds *sdssplitargs(const char *line, int *argc) {
                     } else if (!*p) {
                         /* unterminated quotes */
                         goto err;
-                    } else {
+                    } else {//处理普通字符
                         current = sdscatlen(current,p,1);
                     }
                 } else {
@@ -1024,7 +1024,7 @@ sds *sdssplitargs(const char *line, int *argc) {
                     case '\0':
                         done=1;
                         break;
-                    case '"':
+                    case '"'://这里"和\"貌似没什么区别
                         inq=1;
                         break;
                     case '\'':
@@ -1038,7 +1038,7 @@ sds *sdssplitargs(const char *line, int *argc) {
                 if (*p) p++;
             }
             /* add the token to the vector */
-            vector = s_realloc(vector,((*argc)+1)*sizeof(char*));
+            vector = s_realloc(vector,((*argc)+1)*sizeof(char*));//vector为指向指针的指针，即数组里存储的是char*
             vector[*argc] = current;
             (*argc)++;
             current = NULL;
@@ -1050,7 +1050,7 @@ sds *sdssplitargs(const char *line, int *argc) {
     }
 
 err:
-    while((*argc)--)
+    while((*argc)--)//出错释放已分配空间
         sdsfree(vector[*argc]);
     s_free(vector);
     if (current) sdsfree(current);
@@ -1067,7 +1067,7 @@ err:
  *
  * The function returns the sds string pointer, that is always the same
  * as the input pointer since no resize is needed. */
-sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {
+sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {//将s中存在于from中的字符替换成to中的字符
     size_t j, i, l = sdslen(s);
 
     for (j = 0; j < l; j++) {
@@ -1083,7 +1083,7 @@ sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {
 
 /* Join an array of C strings using the specified separator (also a C string).
  * Returns the result as an sds string. */
-sds sdsjoin(char **argv, int argc, char *sep) {
+sds sdsjoin(char **argv, int argc, char *sep) {//拼接字符串，并以指定的字符分隔
     sds join = sdsempty();
     int j;
 
@@ -1095,7 +1095,7 @@ sds sdsjoin(char **argv, int argc, char *sep) {
 }
 
 /* Like sdsjoin, but joins an array of SDS strings. */
-sds sdsjoinsds(sds *argv, int argc, const char *sep, size_t seplen) {
+sds sdsjoinsds(sds *argv, int argc, const char *sep, size_t seplen) {//同上，但拼接的是sds
     sds join = sdsempty();
     int j;
 
