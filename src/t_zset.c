@@ -473,7 +473,7 @@ unsigned long zslDeleteRangeByRank(zskiplist *zsl, unsigned int start, unsigned 
  * Returns 0 when the element cannot be found, rank otherwise.
  * Note that the rank is 1-based due to the span of zsl->header to the
  * first element. */
-unsigned long zslGetRank(zskiplist *zsl, double score, sds ele) {
+unsigned long zslGetRank(zskiplist *zsl, double score, sds ele) {//返回实际位置
     zskiplistNode *x;
     unsigned long rank = 0;
     int i;
@@ -497,7 +497,7 @@ unsigned long zslGetRank(zskiplist *zsl, double score, sds ele) {
 }
 
 /* Finds an element by its rank. The rank argument needs to be 1-based. */
-zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank) {
+zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank) {//根据位置找到节点
     zskiplistNode *x;
     unsigned long traversed = 0;
     int i;
@@ -517,7 +517,7 @@ zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank) {
 }
 
 /* Populate the rangespec according to the objects min and max. */
-static int zslParseRange(robj *min, robj *max, zrangespec *spec) {
+static int zslParseRange(robj *min, robj *max, zrangespec *spec) {//依据min和max设置区间
     char *eptr;
     spec->minex = spec->maxex = 0;
 
@@ -568,7 +568,7 @@ static int zslParseRange(robj *min, robj *max, zrangespec *spec) {
   *
   * If the string is not a valid range C_ERR is returned, and the value
   * of *dest and *ex is undefined. */
-int zslParseLexRangeItem(robj *item, sds *dest, int *ex) {
+int zslParseLexRangeItem(robj *item, sds *dest, int *ex) {//设置区间
     char *c = item->ptr;
 
     switch(c[0]) {
@@ -609,7 +609,7 @@ void zslFreeLexRange(zlexrangespec *spec) {
  * Return C_OK on success. On error C_ERR is returned.
  * When OK is returned the structure must be freed with zslFreeLexRange(),
  * otherwise no release is needed. */
-int zslParseLexRange(robj *min, robj *max, zlexrangespec *spec) {
+int zslParseLexRange(robj *min, robj *max, zlexrangespec *spec) {//修改范围
     /* The range can't be valid if objects are integer encoded.
      * Every item must start with ( or [. */
     if (min->encoding == OBJ_ENCODING_INT ||
@@ -635,26 +635,26 @@ int sdscmplex(sds a, sds b) {
     return sdscmp(a,b);
 }
 
-int zslLexValueGteMin(sds value, zlexrangespec *spec) {
+int zslLexValueGteMin(sds value, zlexrangespec *spec) {//value是不是最小
     return spec->minex ?
         (sdscmplex(value,spec->min) > 0) :
         (sdscmplex(value,spec->min) >= 0);
 }
 
-int zslLexValueLteMax(sds value, zlexrangespec *spec) {
+int zslLexValueLteMax(sds value, zlexrangespec *spec) {//value是不是最大
     return spec->maxex ?
         (sdscmplex(value,spec->max) < 0) :
         (sdscmplex(value,spec->max) <= 0);
 }
 
 /* Returns if there is a part of the zset is in the lex range. */
-int zslIsInLexRange(zskiplist *zsl, zlexrangespec *range) {
+int zslIsInLexRange(zskiplist *zsl, zlexrangespec *range) {//zsl是否有部分在range范围内
     zskiplistNode *x;
 
     /* Test for ranges that will always be empty. */
     if (sdscmplex(range->min,range->max) > 1 ||
             (sdscmp(range->min,range->max) == 0 &&
-            (range->minex || range->maxex)))
+            (range->minex || range->maxex)))//检查范围
         return 0;
     x = zsl->tail;
     if (x == NULL || !zslLexValueGteMin(x->ele,range))
@@ -667,7 +667,7 @@ int zslIsInLexRange(zskiplist *zsl, zlexrangespec *range) {
 
 /* Find the first node that is contained in the specified lex range.
  * Returns NULL when no element is contained in the range. */
-zskiplistNode *zslFirstInLexRange(zskiplist *zsl, zlexrangespec *range) {
+zskiplistNode *zslFirstInLexRange(zskiplist *zsl, zlexrangespec *range) {//在range内最小的
     zskiplistNode *x;
     int i;
 
@@ -693,7 +693,7 @@ zskiplistNode *zslFirstInLexRange(zskiplist *zsl, zlexrangespec *range) {
 
 /* Find the last node that is contained in the specified range.
  * Returns NULL when no element is contained in the range. */
-zskiplistNode *zslLastInLexRange(zskiplist *zsl, zlexrangespec *range) {
+zskiplistNode *zslLastInLexRange(zskiplist *zsl, zlexrangespec *range) {//在range范围内最大的
     zskiplistNode *x;
     int i;
 
