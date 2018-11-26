@@ -214,7 +214,7 @@
  * 0001 and 1101. */
 #define ZIP_INT_IMM_MASK 0x0f   /* Mask to extract the 4 bits value. To add
                                    one is needed to reconstruct the value. */
-#define ZIP_INT_IMM_MIN 0xf1    /* 11110001 */
+#define ZIP_INT_IMM_MIN 0xf1    /* 11110001 *///真正表示的值需要减去1，
 #define ZIP_INT_IMM_MAX 0xfd    /* 11111101 */
 
 #define INT24_MAX 0x7fffff
@@ -222,7 +222,7 @@
 
 /* Macro to determine if the entry is a string. String entries never start
  * with "11" as most significant bits of the first byte. */
-#define ZIP_IS_STR(enc) (((enc) & ZIP_STR_MASK) < ZIP_STR_MASK)
+#define ZIP_IS_STR(enc) (((enc) & ZIP_STR_MASK) < ZIP_STR_MASK)//字符串的编码前两位一定小于11
 
 /* Utility macros.*/
 
@@ -287,23 +287,23 @@ typedef struct zlentry {
     unsigned char *p;            /* Pointer to the very start of the entry, that
                                     is, this points to prev-entry-len field. */
 } zlentry;
-
+//初始化压缩表
 #define ZIPLIST_ENTRY_ZERO(zle) { \
     (zle)->prevrawlensize = (zle)->prevrawlen = 0; \
     (zle)->lensize = (zle)->len = (zle)->headersize = 0; \
     (zle)->encoding = 0; \
     (zle)->p = NULL; \
 }
-
+//获取字符串节点的编码
 /* Extract the encoding from the byte pointed by 'ptr' and set it into
  * 'encoding' field of the zlentry structure. */
 #define ZIP_ENTRY_ENCODING(ptr, encoding) do {  \
     (encoding) = (ptr[0]); \
     if ((encoding) < ZIP_STR_MASK) (encoding) &= ZIP_STR_MASK; \
 } while(0)
-
+//返回存储编码对应的整数的空间大小
 /* Return bytes needed to store integer encoded by 'encoding'. */
-unsigned int zipIntSize(unsigned char encoding) {
+unsigned int zipIntSize(unsigned char encoding) {//
     switch(encoding) {
     case ZIP_INT_8B:  return 1;
     case ZIP_INT_16B: return 2;
@@ -311,7 +311,7 @@ unsigned int zipIntSize(unsigned char encoding) {
     case ZIP_INT_32B: return 4;
     case ZIP_INT_64B: return 8;
     }
-    if (encoding >= ZIP_INT_IMM_MIN && encoding <= ZIP_INT_IMM_MAX)
+    if (encoding >= ZIP_INT_IMM_MIN && encoding <= ZIP_INT_IMM_MAX)//0-12不占用空间
         return 0; /* 4 bit immediate */
     panic("Invalid integer encoding 0x%02X", encoding);
     return 0;
@@ -329,21 +329,21 @@ unsigned int zipIntSize(unsigned char encoding) {
  *
  * The function returns the number of bytes used by the encoding/length
  * header stored in 'p'. */
-unsigned int zipStoreEntryEncoding(unsigned char *p, unsigned char encoding, unsigned int rawlen) {
+unsigned int zipStoreEntryEncoding(unsigned char *p, unsigned char encoding, unsigned int rawlen) {//rawlen，存储数据长度
     unsigned char len = 1, buf[5];
 
-    if (ZIP_IS_STR(encoding)) {
+    if (ZIP_IS_STR(encoding)) {//字符串
         /* Although encoding is given it may not be set for strings,
          * so we determine it here using the raw length. */
         if (rawlen <= 0x3f) {
             if (!p) return len;
-            buf[0] = ZIP_STR_06B | rawlen;
-        } else if (rawlen <= 0x3fff) {
+            buf[0] = ZIP_STR_06B | rawlen;//拼接长度
+        } else if (rawlen <= 0x3fff) {//两字节长的解码
             len += 1;
             if (!p) return len;
-            buf[0] = ZIP_STR_14B | ((rawlen >> 8) & 0x3f);
+            buf[0] = ZIP_STR_14B | ((rawlen >> 8) & 0x3f);//类似大端
             buf[1] = rawlen & 0xff;
-        } else {
+        } else {//5个字节，大端存储
             len += 4;
             if (!p) return len;
             buf[0] = ZIP_STR_32B;
@@ -352,17 +352,17 @@ unsigned int zipStoreEntryEncoding(unsigned char *p, unsigned char encoding, uns
             buf[3] = (rawlen >> 8) & 0xff;
             buf[4] = rawlen & 0xff;
         }
-    } else {
+    } else {//int型只需要一个字节
         /* Implies integer encoding, so length is always 1. */
         if (!p) return len;
         buf[0] = encoding;
     }
 
     /* Store this length at p. */
-    memcpy(p,buf,len);
+    memcpy(p,buf,len);//拷贝encoding到p
     return len;
 }
-
+//解码长度
 /* Decode the entry encoding type and data length (string length for strings,
  * number of bytes used for the integer for integer entries) encoded in 'ptr'.
  * The 'encoding' variable will hold the entry encoding, the 'lensize'
@@ -396,9 +396,9 @@ unsigned int zipStoreEntryEncoding(unsigned char *p, unsigned char encoding, uns
  * uses the larger encoding (required in __ziplistCascadeUpdate). */
 int zipStorePrevEntryLengthLarge(unsigned char *p, unsigned int len) {
     if (p != NULL) {
-        p[0] = ZIP_BIG_PREVLEN;
+        p[0] = ZIP_BIG_PREVLEN;//第一个字节存储254，表示大于等于254字节，剩下字节拷贝实际长度
         memcpy(p+1,&len,sizeof(len));
-        memrev32ifbe(p+1);
+        memrev32ifbe(p+1);//小端存储
     }
     return 1+sizeof(len);
 }
@@ -406,18 +406,18 @@ int zipStorePrevEntryLengthLarge(unsigned char *p, unsigned int len) {
 /* Encode the length of the previous entry and write it to "p". Return the
  * number of bytes needed to encode this length if "p" is NULL. */
 unsigned int zipStorePrevEntryLength(unsigned char *p, unsigned int len) {
-    if (p == NULL) {
+    if (p == NULL) {//前一个节点的长度，小于254用一个字节存，大于则用5个字节
         return (len < ZIP_BIG_PREVLEN) ? 1 : sizeof(len)+1;
     } else {
-        if (len < ZIP_BIG_PREVLEN) {
+        if (len < ZIP_BIG_PREVLEN) {//p存储实际长度，返回存储长度需要的字节数
             p[0] = len;
             return 1;
-        } else {
+        } else {//处理大于等于254的情况
             return zipStorePrevEntryLengthLarge(p,len);
         }
     }
 }
-
+//解码前一个节点长度
 /* Return the number of bytes used to encode the length of the previous
  * entry. The length is returned by setting the var 'prevlensize'. */
 #define ZIP_DECODE_PREVLENSIZE(ptr, prevlensize) do {                          \
@@ -434,7 +434,7 @@ unsigned int zipStorePrevEntryLength(unsigned char *p, unsigned int len) {
  * length of the previous entry in order to navigate the elements backward).
  * The length of the previous entry is stored in 'prevlen', the number of
  * bytes needed to encode the previous entry length are stored in
- * 'prevlensize'. */
+ * 'prevlensize'. *///取前一个节点长度
 #define ZIP_DECODE_PREVLEN(ptr, prevlensize, prevlen) do {                     \
     ZIP_DECODE_PREVLENSIZE(ptr, prevlensize);                                  \
     if ((prevlensize) == 1) {                                                  \
@@ -461,27 +461,27 @@ unsigned int zipStorePrevEntryLength(unsigned char *p, unsigned int len) {
  * So the function returns a positive number if more space is needed,
  * a negative number if less space is needed, or zero if the same space
  * is needed. */
-int zipPrevLenByteDiff(unsigned char *p, unsigned int len) {
+int zipPrevLenByteDiff(unsigned char *p, unsigned int len) {//得到存储len长度需要的字节与当前存储前一个节点长度的字节
     unsigned int prevlensize;
     ZIP_DECODE_PREVLENSIZE(p, prevlensize);
     return zipStorePrevEntryLength(NULL, len) - prevlensize;
 }
 
 /* Return the total number of bytes used by the entry pointed to by 'p'. */
-unsigned int zipRawEntryLength(unsigned char *p) {
+unsigned int zipRawEntryLength(unsigned char *p) {//当前节点的长度
     unsigned int prevlensize, encoding, lensize, len;
     ZIP_DECODE_PREVLENSIZE(p, prevlensize);
-    ZIP_DECODE_LENGTH(p + prevlensize, encoding, lensize, len);
-    return prevlensize + lensize + len;
+    ZIP_DECODE_LENGTH(p + prevlensize, encoding, lensize, len);//解码当前节点长度
+    return prevlensize + lensize + len;//记录前一个节点长度的空间+记录当前节点长度的空间+数据长度
 }
-
+//尝试解码成long long，并返回对应的解码方式
 /* Check if string pointed to by 'entry' can be encoded as an integer.
  * Stores the integer value in 'v' and its encoding in 'encoding'. */
 int zipTryEncoding(unsigned char *entry, unsigned int entrylen, long long *v, unsigned char *encoding) {
     long long value;
 
     if (entrylen >= 32 || entrylen == 0) return 0;
-    if (string2ll((char*)entry,entrylen,&value)) {
+    if (string2ll((char*)entry,entrylen,&value)) {//转成long long
         /* Great, the string can be encoded. Check what's the smallest
          * of our encoding types that can hold this value. */
         if (value >= 0 && value <= 12) {
@@ -504,7 +504,7 @@ int zipTryEncoding(unsigned char *entry, unsigned int entrylen, long long *v, un
 }
 
 /* Store integer 'value' at 'p', encoded as 'encoding' */
-void zipSaveInteger(unsigned char *p, int64_t value, unsigned char encoding) {
+void zipSaveInteger(unsigned char *p, int64_t value, unsigned char encoding) {//依据编码，保存整数,小端存储
     int16_t i16;
     int32_t i32;
     int64_t i64;
