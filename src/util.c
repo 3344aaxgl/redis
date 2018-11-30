@@ -504,7 +504,7 @@ int d2string(char *buf, size_t len, double value) {
 int ld2string(char *buf, size_t len, long double value, int humanfriendly) {
     size_t l;
 
-    if (isinf(value)) {
+    if (isinf(value)) {//无穷数
         /* Libc in odd systems (Hi Solaris!) will format infinite in a
          * different way, so better to handle it in an explicit way. */
         if (len < 5) return 0; /* No room. 5 is "-inf\0" */
@@ -521,16 +521,16 @@ int ld2string(char *buf, size_t len, long double value, int humanfriendly) {
          * way that is "non surprising" for the user (that is, most small
          * decimal numbers will be represented in a way that when converted
          * back into a string are exactly the same as what the user typed.) */
-        l = snprintf(buf,len,"%.17Lf", value);
+        l = snprintf(buf,len,"%.17Lf", value);//l为成功写入的长度
         if (l+1 > len) return 0; /* No room. */
         /* Now remove trailing zeroes after the '.' */
         if (strchr(buf,'.') != NULL) {
             char *p = buf+l-1;
-            while(*p == '0') {
+            while(*p == '0') {//除去0
                 p--;
                 l--;
             }
-            if (*p == '.') l--;
+            if (*p == '.') l--;//小数点后全是0，把小数点也去掉
         }
     } else {
         l = snprintf(buf,len,"%.17Lg", value);

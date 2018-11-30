@@ -182,7 +182,7 @@ void clientInstallWriteHandler(client *c) {
          * a system call. We'll only really install the write handler if
          * we'll not be able to write the whole reply at once. */
         c->flags |= CLIENT_PENDING_WRITE;
-        listAddNodeHead(server.clients_pending_write,c);
+        listAddNodeHead(server.clients_pending_write,c);//加到准备写
     }
 }
 
@@ -211,7 +211,7 @@ void clientInstallWriteHandler(client *c) {
 int prepareClientToWrite(client *c) {
     /* If it's the Lua client we always return ok without installing any
      * handler since there is no socket at all. */
-    if (c->flags & (CLIENT_LUA|CLIENT_MODULE)) return C_OK;
+    if (c->flags & (CLIENT_LUA|CLIENT_MODULE)) return C_OK;//lua脚本客户端
 
     /* CLIENT REPLY OFF / SKIP handling: don't send replies. */
     if (c->flags & (CLIENT_REPLY_OFF|CLIENT_REPLY_SKIP)) return C_ERR;
@@ -247,7 +247,7 @@ int _addReplyToBuffer(client *c, const char *s, size_t len) {
     /* Check that the buffer has enough space available for this string. */
     if (len > available) return C_ERR;
 
-    memcpy(c->buf+c->bufpos,s,len);
+    memcpy(c->buf+c->bufpos,s,len);//将回复拷贝到客户端缓存空间
     c->bufpos+=len;
     return C_OK;
 }
@@ -263,7 +263,7 @@ void _addReplyStringToList(client *c, const char *s, size_t len) {
      * fo fill it later, when the size of the bulk length is set. */
 
     /* Append to tail string when possible. */
-    if (tail) {
+    if (tail) {//
         /* Copy the part we can fit into the tail, and leave the rest for a
          * new node */
         size_t avail = tail->size - tail->used;
@@ -294,13 +294,13 @@ void _addReplyStringToList(client *c, const char *s, size_t len) {
  * -------------------------------------------------------------------------- */
 
 /* Add the object 'obj' string representation to the client output buffer. */
-void addReply(client *c, robj *obj) {
+void addReply(client *c, robj *obj) {//将obj的表示的字符串加到客户端的输出缓存中
     if (prepareClientToWrite(c) != C_OK) return;
 
-    if (sdsEncodedObject(obj)) {
+    if (sdsEncodedObject(obj)) {//是否为字符串编码
         if (_addReplyToBuffer(c,obj->ptr,sdslen(obj->ptr)) != C_OK)
             _addReplyStringToList(c,obj->ptr,sdslen(obj->ptr));
-    } else if (obj->encoding == OBJ_ENCODING_INT) {
+    } else if (obj->encoding == OBJ_ENCODING_INT) {//数字编码
         /* For integer encoded strings we just convert it into a string
          * using our optimized function, and attach the resulting string
          * to the output buffer. */

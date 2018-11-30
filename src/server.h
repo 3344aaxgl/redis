@@ -600,7 +600,7 @@ typedef struct RedisModuleDigest {
 #define LRU_CLOCK_RESOLUTION 1000 /* LRU clock resolution in ms */
 
 #define OBJ_SHARED_REFCOUNT INT_MAX
-typedef struct redisObject {
+typedef struct redisObject {//lru最近最久使用 lfu访问频率
     unsigned type:4;
     unsigned encoding:4;
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
@@ -809,7 +809,7 @@ typedef struct zskiplist {
     int level;
 } zskiplist;
 
-typedef struct zset {
+typedef struct zset {//跳跃表与字典结合
     dict *dict;
     zskiplist *zsl;
 } zset;

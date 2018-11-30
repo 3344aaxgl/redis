@@ -47,8 +47,8 @@ robj *createObject(int type, void *ptr) {
 
     /* Set the LRU to the current lruclock (minutes resolution), or
      * alternatively the LFU counter. */
-    if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
-        o->lru = (LFUGetTimeInMinutes()<<8) | LFU_INIT_VAL;
+    if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {//服务器键值过期策略是LFU
+        o->lru = (LFUGetTimeInMinutes()<<8) | LFU_INIT_VAL;//共24位，保证至少为5
     } else {
         o->lru = LRU_CLOCK();
     }
@@ -66,7 +66,7 @@ robj *createObject(int type, void *ptr) {
  * robj *myobject = makeObjectShared(createObject(...));
  *
  */
-robj *makeObjectShared(robj *o) {
+robj *makeObjectShared(robj *o) {//修改引用计数为最大整型
     serverAssert(o->refcount == 1);
     o->refcount = OBJ_SHARED_REFCOUNT;
     return o;
@@ -75,36 +75,36 @@ robj *makeObjectShared(robj *o) {
 /* Create a string object with encoding OBJ_ENCODING_RAW, that is a plain
  * string object where o->ptr points to a proper sds string. */
 robj *createRawStringObject(const char *ptr, size_t len) {
-    return createObject(OBJ_STRING, sdsnewlen(ptr,len));
+    return createObject(OBJ_STRING, sdsnewlen(ptr,len));//创建一个OBJ_STRING类型对象，指针指向sds
 }
 
 /* Create a string object with encoding OBJ_ENCODING_EMBSTR, that is
  * an object where the sds string is actually an unmodifiable string
  * allocated in the same chunk as the object itself. */
-robj *createEmbeddedStringObject(const char *ptr, size_t len) {
+robj *createEmbeddedStringObject(const char *ptr, size_t len) {//sds和robj分配在一起，成为内嵌
     robj *o = zmalloc(sizeof(robj)+sizeof(struct sdshdr8)+len+1);
-    struct sdshdr8 *sh = (void*)(o+1);
+    struct sdshdr8 *sh = (void*)(o+1);//跳过robj对象
 
-    o->type = OBJ_STRING;
-    o->encoding = OBJ_ENCODING_EMBSTR;
-    o->ptr = sh+1;
-    o->refcount = 1;
-    if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
+    o->type = OBJ_STRING;//对象类型
+    o->encoding = OBJ_ENCODING_EMBSTR;//解码方式
+    o->ptr = sh+1;//指向真正的字符串空间
+    o->refcount = 1;//引用计数
+    if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {//拿到LFU和LRU的clock
         o->lru = (LFUGetTimeInMinutes()<<8) | LFU_INIT_VAL;
     } else {
         o->lru = LRU_CLOCK();
     }
 
-    sh->len = len;
-    sh->alloc = len;
+    sh->len = len; //字符串长度
+    sh->alloc = len;//给字符串分配的空间
     sh->flags = SDS_TYPE_8;
-    if (ptr == SDS_NOINIT)
+    if (ptr == SDS_NOINIT)//初始化的sds
         sh->buf[len] = '\0';
     else if (ptr) {
         memcpy(sh->buf,ptr,len);
-        sh->buf[len] = '\0';
+        sh->buf[len] = '\0';//最后一位置为0
     } else {
-        memset(sh->buf,0,len+1);
+        memset(sh->buf,0,len+1);//初始化为0
     }
     return o;
 }
@@ -117,7 +117,7 @@ robj *createEmbeddedStringObject(const char *ptr, size_t len) {
  * we allocate as EMBSTR will still fit into the 64 byte arena of jemalloc. */
 #define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44
 robj *createStringObject(const char *ptr, size_t len) {
-    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)
+    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)//小于44字节，创建内嵌型的
         return createEmbeddedStringObject(ptr,len);
     else
         return createRawStringObject(ptr,len);
@@ -134,7 +134,7 @@ robj *createStringObjectFromLongLongWithOptions(long long value, int valueobj) {
     robj *o;
 
     if (server.maxmemory == 0 ||
-        !(server.maxmemory_policy & MAXMEMORY_FLAG_NO_SHARED_INTEGERS))
+        !(server.maxmemory_policy & MAXMEMORY_FLAG_NO_SHARED_INTEGERS))//没有内存限制，没有过期策略
     {
         /* If the maxmemory policy permits, we can still return shared integers
          * even if valueobj is true. */
@@ -142,15 +142,15 @@ robj *createStringObjectFromLongLongWithOptions(long long value, int valueobj) {
     }
 
     if (value >= 0 && value < OBJ_SHARED_INTEGERS && valueobj == 0) {
-        incrRefCount(shared.integers[value]);
-        o = shared.integers[value];
+        incrRefCount(shared.integers[value]);//增加引用计数
+        o = shared.integers[value];//已经存在，直接返回
     } else {
         if (value >= LONG_MIN && value <= LONG_MAX) {
-            o = createObject(OBJ_STRING, NULL);
-            o->encoding = OBJ_ENCODING_INT;
-            o->ptr = (void*)((long)value);
+            o = createObject(OBJ_STRING, NULL);//创建robj对象
+            o->encoding = OBJ_ENCODING_INT;//设置编码方式
+            o->ptr = (void*)((long)value);//转成long，4字节，直接通过指针存储
         } else {
-            o = createObject(OBJ_STRING,sdsfromlonglong(value));
+            o = createObject(OBJ_STRING,sdsfromlonglong(value));//通过sds存储
         }
     }
     return o;
@@ -159,7 +159,7 @@ robj *createStringObjectFromLongLongWithOptions(long long value, int valueobj) {
 /* Wrapper for createStringObjectFromLongLongWithOptions() always demanding
  * to create a shared object if possible. */
 robj *createStringObjectFromLongLong(long long value) {
-    return createStringObjectFromLongLongWithOptions(value,0);
+    return createStringObjectFromLongLongWithOptions(value,0);//创建共享型的
 }
 
 /* Wrapper for createStringObjectFromLongLongWithOptions() avoiding a shared
@@ -167,7 +167,7 @@ robj *createStringObjectFromLongLong(long long value) {
  * as a value in the key space, and Redis is configured to evict based on
  * LFU/LRU. */
 robj *createStringObjectFromLongLongForValue(long long value) {
-    return createStringObjectFromLongLongWithOptions(value,1);
+    return createStringObjectFromLongLongWithOptions(value,1);//避免共享型的
 }
 
 /* Create a string object from a long double. If humanfriendly is non-zero
@@ -178,8 +178,8 @@ robj *createStringObjectFromLongLongForValue(long long value) {
  * The 'humanfriendly' option is used for INCRBYFLOAT and HINCRBYFLOAT. */
 robj *createStringObjectFromLongDouble(long double value, int humanfriendly) {
     char buf[MAX_LONG_DOUBLE_CHARS];
-    int len = ld2string(buf,sizeof(buf),value,humanfriendly);
-    return createStringObject(buf,len);
+    int len = ld2string(buf,sizeof(buf),value,humanfriendly);//将long double转成字符串，并返回长度
+    return createStringObject(buf,len);//创建redisobject对象
 }
 
 /* Duplicate a string object, with the guarantee that the returned object
@@ -190,7 +190,7 @@ robj *createStringObjectFromLongDouble(long double value, int humanfriendly) {
  * will always result in a fresh object that is unshared (refcount == 1).
  *
  * The resulting object always has refcount set to 1. */
-robj *dupStringObject(const robj *o) {
+robj *dupStringObject(const robj *o) {//拷贝对象-》创建一个新的对象，值和原对象一直
     robj *d;
 
     serverAssert(o->type == OBJ_STRING);
@@ -211,21 +211,21 @@ robj *dupStringObject(const robj *o) {
     }
 }
 
-robj *createQuicklistObject(void) {
+robj *createQuicklistObject(void) {//双向压缩链表
     quicklist *l = quicklistCreate();
     robj *o = createObject(OBJ_LIST,l);
     o->encoding = OBJ_ENCODING_QUICKLIST;
     return o;
 }
 
-robj *createZiplistObject(void) {
+robj *createZiplistObject(void) {//压缩表
     unsigned char *zl = ziplistNew();
     robj *o = createObject(OBJ_LIST,zl);
     o->encoding = OBJ_ENCODING_ZIPLIST;
     return o;
 }
 
-robj *createSetObject(void) {
+robj *createSetObject(void) {//创建字典对象
     dict *d = dictCreate(&setDictType,NULL);
     robj *o = createObject(OBJ_SET,d);
     o->encoding = OBJ_ENCODING_HT;
@@ -233,7 +233,7 @@ robj *createSetObject(void) {
 }
 
 robj *createIntsetObject(void) {
-    intset *is = intsetNew();
+    intset *is = intsetNew();//整数集合
     robj *o = createObject(OBJ_SET,is);
     o->encoding = OBJ_ENCODING_INTSET;
     return o;
@@ -257,7 +257,7 @@ robj *createZsetObject(void) {
     return o;
 }
 
-robj *createZsetZiplistObject(void) {
+robj *createZsetZiplistObject(void) {//跳跃表
     unsigned char *zl = ziplistNew();
     robj *o = createObject(OBJ_ZSET,zl);
     o->encoding = OBJ_ENCODING_ZIPLIST;
@@ -346,11 +346,11 @@ void freeStreamObject(robj *o) {
     freeStream(o->ptr);
 }
 
-void incrRefCount(robj *o) {
+void incrRefCount(robj *o) {//增加引用计数
     if (o->refcount != OBJ_SHARED_REFCOUNT) o->refcount++;
 }
 
-void decrRefCount(robj *o) {
+void decrRefCount(robj *o) {//减少引用计数，为0则释放对象
     if (o->refcount == 1) {
         switch(o->type) {
         case OBJ_STRING: freeStringObject(o); break;
@@ -388,7 +388,7 @@ void decrRefCountVoid(void *o) {
  *    functionThatWillIncrementRefCount(obj);
  *    decrRefCount(obj);
  */
-robj *resetRefCount(robj *obj) {
+robj *resetRefCount(robj *obj) {//重置引用计数
     obj->refcount = 0;
     return obj;
 }
