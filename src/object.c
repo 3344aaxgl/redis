@@ -393,7 +393,7 @@ robj *resetRefCount(robj *obj) {//重置引用计数
     return obj;
 }
 
-int checkType(client *c, robj *o, int type) {
+int checkType(client *c, robj *o, int type) {//检查对象o与type类型是否一致，不一致则向客户端返回一个错误
     if (o->type != type) {
         addReply(c,shared.wrongtypeerr);
         return 1;
@@ -401,13 +401,13 @@ int checkType(client *c, robj *o, int type) {
     return 0;
 }
 
-int isSdsRepresentableAsLongLong(sds s, long long *llval) {
+int isSdsRepresentableAsLongLong(sds s, long long *llval) {//sds转long long
     return string2ll(s,sdslen(s),llval) ? C_OK : C_ERR;
 }
 
 int isObjectRepresentableAsLongLong(robj *o, long long *llval) {
-    serverAssertWithInfo(NULL,o,o->type == OBJ_STRING);
-    if (o->encoding == OBJ_ENCODING_INT) {
+    serverAssertWithInfo(NULL,o,o->type == OBJ_STRING);//是否是string类型的
+    if (o->encoding == OBJ_ENCODING_INT) {//编码方式就是int
         if (llval) *llval = (long) o->ptr;
         return C_OK;
     } else {
@@ -416,7 +416,7 @@ int isObjectRepresentableAsLongLong(robj *o, long long *llval) {
 }
 
 /* Try to encode a string object in order to save space */
-robj *tryObjectEncoding(robj *o) {
+robj *tryObjectEncoding(robj *o) {//尝试进行编码
     long value;
     sds s = o->ptr;
     size_t len;
@@ -435,12 +435,12 @@ robj *tryObjectEncoding(robj *o) {
     /* It's not safe to encode shared objects: shared objects can be shared
      * everywhere in the "object space" of Redis and may end in places where
      * they are not handled. We handle them only as values in the keyspace. */
-     if (o->refcount > 1) return o;
+     if (o->refcount > 1) return o;//引用计数超过1
 
     /* Check if we can represent this string as a long integer.
      * Note that we are sure that a string larger than 20 chars is not
      * representable as a 32 nor 64 bit integer. */
-    len = sdslen(s);
+    len = sdslen(s);//长度，超过20位的不能表示数字
     if (len <= 20 && string2l(s,len,&value)) {
         /* This object is encodable as a long. Try to use a shared object.
          * Note that we avoid using shared integers when maxmemory is used
@@ -449,12 +449,12 @@ robj *tryObjectEncoding(robj *o) {
         if ((server.maxmemory == 0 ||
             !(server.maxmemory_policy & MAXMEMORY_FLAG_NO_SHARED_INTEGERS)) &&
             value >= 0 &&
-            value < OBJ_SHARED_INTEGERS)
+            value < OBJ_SHARED_INTEGERS)//存入共享数组
         {
             decrRefCount(o);
             incrRefCount(shared.integers[value]);
             return shared.integers[value];
-        } else {
+        } else {//改成数字编码
             if (o->encoding == OBJ_ENCODING_RAW) sdsfree(o->ptr);
             o->encoding = OBJ_ENCODING_INT;
             o->ptr = (void*) value;
@@ -466,7 +466,7 @@ robj *tryObjectEncoding(robj *o) {
      * try the EMBSTR encoding which is more efficient.
      * In this representation the object and the SDS string are allocated
      * in the same chunk of memory to save space and cache misses. */
-    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {
+    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT) {//可以生成内嵌的字符串对象
         robj *emb;
 
         if (o->encoding == OBJ_ENCODING_EMBSTR) return o;
@@ -485,9 +485,9 @@ robj *tryObjectEncoding(robj *o) {
      * is only entered if the length of the string is greater than
      * OBJ_ENCODING_EMBSTR_SIZE_LIMIT. */
     if (o->encoding == OBJ_ENCODING_RAW &&
-        sdsavail(s) > len/10)
+        sdsavail(s) > len/10)//分配空间太多
     {
-        o->ptr = sdsRemoveFreeSpace(o->ptr);
+        o->ptr = sdsRemoveFreeSpace(o->ptr);//重新分配
     }
 
     /* Return the original object. */
@@ -499,15 +499,15 @@ robj *tryObjectEncoding(robj *o) {
 robj *getDecodedObject(robj *o) {
     robj *dec;
 
-    if (sdsEncodedObject(o)) {
+    if (sdsEncodedObject(o)) {//已经是字符串编码增加引用计数
         incrRefCount(o);
         return o;
     }
     if (o->type == OBJ_STRING && o->encoding == OBJ_ENCODING_INT) {
         char buf[32];
 
-        ll2string(buf,32,(long)o->ptr);
-        dec = createStringObject(buf,strlen(buf));
+        ll2string(buf,32,(long)o->ptr);//尝试以数字的形式转成string
+        dec = createStringObject(buf,strlen(buf));//创建字符串对象
         return dec;
     } else {
         serverPanic("Unknown encoding type");
@@ -531,14 +531,14 @@ int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
     size_t alen, blen, minlen;
 
     if (a == b) return 0;
-    if (sdsEncodedObject(a)) {
+    if (sdsEncodedObject(a)) {//字符串编码
         astr = a->ptr;
-        alen = sdslen(astr);
+        alen = sdslen(astr);//转成sds
     } else {
-        alen = ll2string(bufa,sizeof(bufa),(long) a->ptr);
+        alen = ll2string(bufa,sizeof(bufa),(long) a->ptr);//将数字转成string
         astr = bufa;
     }
-    if (sdsEncodedObject(b)) {
+    if (sdsEncodedObject(b)) {//解码
         bstr = b->ptr;
         blen = sdslen(bstr);
     } else {
@@ -546,7 +546,7 @@ int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
         bstr = bufb;
     }
     if (flags & REDIS_COMPARE_COLL) {
-        return strcoll(astr,bstr);
+        return strcoll(astr,bstr);//strcoll会根据语言的不同来比较
     } else {
         int cmp;
 
@@ -571,7 +571,7 @@ int collateStringObjects(robj *a, robj *b) {
  * point of view of a string comparison, otherwise 0 is returned. Note that
  * this function is faster then checking for (compareStringObject(a,b) == 0)
  * because it can perform some more optimization. */
-int equalStringObjects(robj *a, robj *b) {
+int equalStringObjects(robj *a, robj *b) {//比较两个对象
     if (a->encoding == OBJ_ENCODING_INT &&
         b->encoding == OBJ_ENCODING_INT){
         /* If both strings are integer encoded just check if the stored
@@ -582,7 +582,7 @@ int equalStringObjects(robj *a, robj *b) {
     }
 }
 
-size_t stringObjectLen(robj *o) {
+size_t stringObjectLen(robj *o) {//返回存储字符串的长度
     serverAssertWithInfo(NULL,o,o->type == OBJ_STRING);
     if (sdsEncodedObject(o)) {
         return sdslen(o->ptr);
@@ -591,7 +591,7 @@ size_t stringObjectLen(robj *o) {
     }
 }
 
-int getDoubleFromObject(const robj *o, double *target) {
+int getDoubleFromObject(const robj *o, double *target) {//转成double
     double value;
     char *eptr;
 
@@ -599,17 +599,17 @@ int getDoubleFromObject(const robj *o, double *target) {
         value = 0;
     } else {
         serverAssertWithInfo(NULL,o,o->type == OBJ_STRING);
-        if (sdsEncodedObject(o)) {
+        if (sdsEncodedObject(o)) {//字符串编码
             errno = 0;
-            value = strtod(o->ptr, &eptr);
+            value = strtod(o->ptr, &eptr);//将字符串转成double
             if (sdslen(o->ptr) == 0 ||
                 isspace(((const char*)o->ptr)[0]) ||
                 (size_t)(eptr-(char*)o->ptr) != sdslen(o->ptr) ||
                 (errno == ERANGE &&
                     (value == HUGE_VAL || value == -HUGE_VAL || value == 0)) ||
                 isnan(value))
-                return C_ERR;
-        } else if (o->encoding == OBJ_ENCODING_INT) {
+                return C_ERR;//转换出错
+        } else if (o->encoding == OBJ_ENCODING_INT) {//数字编码
             value = (long)o->ptr;
         } else {
             serverPanic("Unknown string encoding");
@@ -622,7 +622,7 @@ int getDoubleFromObject(const robj *o, double *target) {
 int getDoubleFromObjectOrReply(client *c, robj *o, double *target, const char *msg) {
     double value;
     if (getDoubleFromObject(o, &value) != C_OK) {
-        if (msg != NULL) {
+        if (msg != NULL) {//转换出错，返回给客户端
             addReplyError(c,(char*)msg);
         } else {
             addReplyError(c,"value is not a valid float");
@@ -633,7 +633,7 @@ int getDoubleFromObjectOrReply(client *c, robj *o, double *target, const char *m
     return C_OK;
 }
 
-int getLongDoubleFromObject(robj *o, long double *target) {
+int getLongDoubleFromObject(robj *o, long double *target) {//转成long double
     long double value;
     char *eptr;
 
@@ -661,7 +661,7 @@ int getLongDoubleFromObject(robj *o, long double *target) {
     return C_OK;
 }
 
-int getLongDoubleFromObjectOrReply(client *c, robj *o, long double *target, const char *msg) {
+int getLongDoubleFromObjectOrReply(client *c, robj *o, long double *target, const char *msg) {//包装返回错误信息给客户端
     long double value;
     if (getLongDoubleFromObject(o, &value) != C_OK) {
         if (msg != NULL) {
@@ -675,7 +675,7 @@ int getLongDoubleFromObjectOrReply(client *c, robj *o, long double *target, cons
     return C_OK;
 }
 
-int getLongLongFromObject(robj *o, long long *target) {
+int getLongLongFromObject(robj *o, long long *target) {//返回long long
     long long value;
 
     if (o == NULL) {
@@ -724,7 +724,7 @@ int getLongFromObjectOrReply(client *c, robj *o, long *target, const char *msg) 
     return C_OK;
 }
 
-char *strEncoding(int encoding) {
+char *strEncoding(int encoding) {//编码
     switch(encoding) {
     case OBJ_ENCODING_RAW: return "raw";
     case OBJ_ENCODING_INT: return "int";
@@ -1219,7 +1219,7 @@ void objectSetLRUOrLFU(robj *val, long long lfu_freq, long long lru_idle,
 
 /* This is a helper function for the OBJECT command. We need to lookup keys
  * without any modification of LRU or other parameters. */
-robj *objectCommandLookup(client *c, robj *key) {
+robj *objectCommandLookup(client *c, robj *key) {//返回键对应的值
     dictEntry *de;
 
     if ((de = dictFind(c->db->dict,key->ptr)) == NULL) return NULL;
@@ -1247,15 +1247,15 @@ void objectCommand(client *c) {
 NULL
         };
         addReplyHelp(c, help);
-    } else if (!strcasecmp(c->argv[1]->ptr,"refcount") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"refcount") && c->argc == 3) {//返回引用计数
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.nullbulk))
                 == NULL) return;
         addReplyLongLong(c,o->refcount);
-    } else if (!strcasecmp(c->argv[1]->ptr,"encoding") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"encoding") && c->argc == 3) {//返回编码
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.nullbulk))
                 == NULL) return;
         addReplyBulkCString(c,strEncoding(o->encoding));
-    } else if (!strcasecmp(c->argv[1]->ptr,"idletime") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"idletime") && c->argc == 3) {//对象空闲时间
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.nullbulk))
                 == NULL) return;
         if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
@@ -1263,7 +1263,7 @@ NULL
             return;
         }
         addReplyLongLong(c,estimateObjectIdleTime(o)/1000);
-    } else if (!strcasecmp(c->argv[1]->ptr,"freq") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"freq") && c->argc == 3) {//访问次数
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.nullbulk))
                 == NULL) return;
         if (!(server.maxmemory_policy & MAXMEMORY_FLAG_LFU)) {
@@ -1322,7 +1322,7 @@ NULL
         usage += sdsAllocSize(c->argv[2]->ptr);
         usage += sizeof(dictEntry);
         addReplyLongLong(c,usage);
-    } else if (!strcasecmp(c->argv[1]->ptr,"stats") && c->argc == 2) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"stats") && c->argc == 2) {//内存状态信息
         struct redisMemOverhead *mh = getMemoryOverheadData();
 
         addReplyMultiBulkLen(c,(25+mh->num_dbs)*2);

@@ -34,7 +34,7 @@
  * String Commands
  *----------------------------------------------------------------------------*/
 
-static int checkStringLength(client *c, long long size) {
+static int checkStringLength(client *c, long long size) {//不能超过512M
     if (size > 512*1024*1024) {
         addReplyError(c,"string exceeds maximum allowed size (512MB)");
         return C_ERR;
@@ -63,12 +63,12 @@ static int checkStringLength(client *c, long long size) {
 #define OBJ_SET_XX (1<<1)     /* Set if key exists. */
 #define OBJ_SET_EX (1<<2)     /* Set if time in seconds is given */
 #define OBJ_SET_PX (1<<3)     /* Set if time in ms in given */
-
+//支持多个命令
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0; /* initialized to avoid any harmness warning */
 
     if (expire) {
-        if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
+        if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)//取出过期时间
             return;
         if (milliseconds <= 0) {
             addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name);
@@ -78,22 +78,22 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     }
 
     if ((flags & OBJ_SET_NX && lookupKeyWrite(c->db,key) != NULL) ||
-        (flags & OBJ_SET_XX && lookupKeyWrite(c->db,key) == NULL))
+        (flags & OBJ_SET_XX && lookupKeyWrite(c->db,key) == NULL))//检查键值是否存在
     {
         addReply(c, abort_reply ? abort_reply : shared.nullbulk);
         return;
     }
-    setKey(c->db,key,val);
-    server.dirty++;
-    if (expire) setExpire(c,c->db,key,mstime()+milliseconds);
+    setKey(c->db,key,val);//设置键值
+    server.dirty++;//数据库置为脏
+    if (expire) setExpire(c,c->db,key,mstime()+milliseconds);//设置过期时间
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
     if (expire) notifyKeyspaceEvent(NOTIFY_GENERIC,
-        "expire",key,c->db->id);
+        "expire",key,c->db->id);//发送事件通知
     addReply(c, ok_reply ? ok_reply : shared.ok);
 }
 
 /* SET key value [NX] [XX] [EX <seconds>] [PX <milliseconds>] */
-void setCommand(client *c) {
+void setCommand(client *c) {//设置命令
     int j;
     robj *expire = NULL;
     int unit = UNIT_SECONDS;
@@ -135,16 +135,16 @@ void setCommand(client *c) {
         }
     }
 
-    c->argv[2] = tryObjectEncoding(c->argv[2]);
+    c->argv[2] = tryObjectEncoding(c->argv[2]);//将值尝试进行编码
     setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
 }
 
-void setnxCommand(client *c) {
+void setnxCommand(client *c) {//nx命令
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     setGenericCommand(c,OBJ_SET_NX,c->argv[1],c->argv[2],NULL,0,shared.cone,shared.czero);
 }
 
-void setexCommand(client *c) {
+void setexCommand(client *c) {//ex命令
     c->argv[3] = tryObjectEncoding(c->argv[3]);
     setGenericCommand(c,OBJ_SET_NO_FLAGS,c->argv[1],c->argv[3],c->argv[2],UNIT_SECONDS,NULL,NULL);
 }
@@ -157,14 +157,14 @@ void psetexCommand(client *c) {
 int getGenericCommand(client *c) {
     robj *o;
 
-    if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)
+    if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)//尝试取出键值
         return C_OK;
 
-    if (o->type != OBJ_STRING) {
+    if (o->type != OBJ_STRING) {//类型错误
         addReply(c,shared.wrongtypeerr);
         return C_ERR;
     } else {
-        addReplyBulk(c,o);
+        addReplyBulk(c,o);//返回对象
         return C_OK;
     }
 }
@@ -174,10 +174,10 @@ void getCommand(client *c) {
 }
 
 void getsetCommand(client *c) {
-    if (getGenericCommand(c) == C_ERR) return;
+    if (getGenericCommand(c) == C_ERR) return;//查找键，并返回值
     c->argv[2] = tryObjectEncoding(c->argv[2]);
-    setKey(c->db,c->argv[1],c->argv[2]);
-    notifyKeyspaceEvent(NOTIFY_STRING,"set",c->argv[1],c->db->id);
+    setKey(c->db,c->argv[1],c->argv[2]);//设置值
+    notifyKeyspaceEvent(NOTIFY_STRING,"set",c->argv[1],c->db->id);//发送事件
     server.dirty++;
 }
 
@@ -186,7 +186,7 @@ void setrangeCommand(client *c) {
     long offset;
     sds value = c->argv[3]->ptr;
 
-    if (getLongFromObjectOrReply(c,c->argv[2],&offset,NULL) != C_OK)
+    if (getLongFromObjectOrReply(c,c->argv[2],&offset,NULL) != C_OK)//第三个参数的value转long
         return;
 
     if (offset < 0) {
@@ -194,40 +194,40 @@ void setrangeCommand(client *c) {
         return;
     }
 
-    o = lookupKeyWrite(c->db,c->argv[1]);
-    if (o == NULL) {
+    o = lookupKeyWrite(c->db,c->argv[1]);//查找键
+    if (o == NULL) {//未找到键
         /* Return 0 when setting nothing on a non-existing string */
-        if (sdslen(value) == 0) {
+        if (sdslen(value) == 0) {//sds长度
             addReply(c,shared.czero);
             return;
         }
 
         /* Return when the resulting string exceeds allowed size */
-        if (checkStringLength(c,offset+sdslen(value)) != C_OK)
+        if (checkStringLength(c,offset+sdslen(value)) != C_OK)//是否超过string长度限制
             return;
 
-        o = createObject(OBJ_STRING,sdsnewlen(NULL, offset+sdslen(value)));
-        dbAdd(c->db,c->argv[1],o);
-    } else {
+        o = createObject(OBJ_STRING,sdsnewlen(NULL, offset+sdslen(value)));//创建新的空对象
+        dbAdd(c->db,c->argv[1],o);//添加键值
+    } else {//键已存在
         size_t olen;
 
         /* Key exists, check type */
-        if (checkType(c,o,OBJ_STRING))
+        if (checkType(c,o,OBJ_STRING))//已是string类型
             return;
 
         /* Return existing string length when setting nothing */
-        olen = stringObjectLen(o);
-        if (sdslen(value) == 0) {
+        olen = stringObjectLen(o);//返回当前键映射值的长度
+        if (sdslen(value) == 0) {//value我空
             addReplyLongLong(c,olen);
             return;
         }
 
         /* Return when the resulting string exceeds allowed size */
-        if (checkStringLength(c,offset+sdslen(value)) != C_OK)
+        if (checkStringLength(c,offset+sdslen(value)) != C_OK)//是否超过限制
             return;
 
         /* Create a copy when the object is shared or encoded. */
-        o = dbUnshareStringValue(c->db,c->argv[1],o);
+        o = dbUnshareStringValue(c->db,c->argv[1],o);//不共享则返回现有的对象，否则，减少现有对象的引用，并copy一份副本
     }
 
     if (sdslen(value) > 0) {

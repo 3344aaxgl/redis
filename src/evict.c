@@ -87,7 +87,7 @@ unsigned int LRU_CLOCK(void) {
 
 /* Given an object returns the min number of milliseconds the object was never
  * requested, using an approximated LRU algorithm. */
-unsigned long long estimateObjectIdleTime(robj *o) {
+unsigned long long estimateObjectIdleTime(robj *o) {//返回多长时间对象未被请求
     unsigned long long lruclock = LRU_CLOCK();
     if (lruclock >= o->lru) {
         return (lruclock - o->lru) * LRU_CLOCK_RESOLUTION;
@@ -333,11 +333,11 @@ uint8_t LFULogIncr(uint8_t counter) {
  * to fit: as we check for the candidate, we incrementally decrement the
  * counter of the scanned objects if needed. */
 unsigned long LFUDecrAndReturn(robj *o) {
-    unsigned long ldt = o->lru >> 8;
-    unsigned long counter = o->lru & 255;
-    unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;
+    unsigned long ldt = o->lru >> 8;//高16位表示时间
+    unsigned long counter = o->lru & 255;//低8位次数
+    unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;//因衰减因子而产生的次数
     if (num_periods)
-        counter = (num_periods > counter) ? 0 : counter - num_periods;
+        counter = (num_periods > counter) ? 0 : counter - num_periods;//要减去衰减因子的次数
     return counter;
 }
 

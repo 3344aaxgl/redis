@@ -98,35 +98,35 @@ static inline void raxStackInit(raxStack *ts) {
 
 /* Push an item into the stack, returns 1 on success, 0 on out of memory. */
 static inline int raxStackPush(raxStack *ts, void *ptr) {
-    if (ts->items == ts->maxitems) {
-        if (ts->stack == ts->static_items) {
-            ts->stack = rax_malloc(sizeof(void*)*ts->maxitems*2);
-            if (ts->stack == NULL) {
+    if (ts->items == ts->maxitems) {//已经达到了当前能容纳的最大个数
+        if (ts->stack == ts->static_items) {//当前使用的是静态数组静态数组
+            ts->stack = rax_malloc(sizeof(void*)*ts->maxitems*2);//容量翻倍
+            if (ts->stack == NULL) {//分配空间失败
                 ts->stack = ts->static_items;
-                ts->oom = 1;
+                ts->oom = 1;//失败置为1
                 errno = ENOMEM;
                 return 0;
             }
-            memcpy(ts->stack,ts->static_items,sizeof(void*)*ts->maxitems);
-        } else {
+            memcpy(ts->stack,ts->static_items,sizeof(void*)*ts->maxitems);//拷贝数据
+        } else {//已经使用的动态数组
             void **newalloc = rax_realloc(ts->stack,sizeof(void*)*ts->maxitems*2);
             if (newalloc == NULL) {
-                ts->oom = 1;
+                ts->oom = 1;//分配空间出错
                 errno = ENOMEM;
                 return 0;
             }
             ts->stack = newalloc;
         }
-        ts->maxitems *= 2;
+        ts->maxitems *= 2;//修改最大容量
     }
-    ts->stack[ts->items] = ptr;
+    ts->stack[ts->items] = ptr;//插入
     ts->items++;
     return 1;
 }
 
 /* Pop an item from the stack, the function returns NULL if there are no
  * items to pop. */
-static inline void *raxStackPop(raxStack *ts) {
+static inline void *raxStackPop(raxStack *ts) {//pop操作
     if (ts->items == 0) return NULL;
     ts->items--;
     return ts->stack[ts->items];
@@ -134,13 +134,13 @@ static inline void *raxStackPop(raxStack *ts) {
 
 /* Return the stack item at the top of the stack without actually consuming
  * it. */
-static inline void *raxStackPeek(raxStack *ts) {
+static inline void *raxStackPeek(raxStack *ts) {//top操纵
     if (ts->items == 0) return NULL;
     return ts->stack[ts->items-1];
 }
 
 /* Free the stack in case we used heap allocation. */
-static inline void raxStackFree(raxStack *ts) {
+static inline void raxStackFree(raxStack *ts) {//使用堆分配，释放？？
     if (ts->stack != ts->static_items) rax_free(ts->stack);
 }
 
@@ -152,7 +152,7 @@ static inline void raxStackFree(raxStack *ts) {
  * 'nodesize'. The padding is needed to store the child pointers to aligned
  * addresses. Note that we add 4 to the node size because the node has a four
  * bytes header. */
-#define raxPadding(nodesize) ((sizeof(void*)-((nodesize+4) % sizeof(void*))) & (sizeof(void*)-1))
+#define raxPadding(nodesize) ((sizeof(void*)-((nodesize+4) % sizeof(void*))) & (sizeof(void*)-1))//需要4字节填充
 
 /* Return the pointer to the last child pointer in a node. For the compressed
  * nodes this is the only child pointer. */
@@ -183,22 +183,22 @@ static inline void raxStackFree(raxStack *ts) {
  * If datafiled is true, the allocation is made large enough to hold the
  * associated data pointer.
  * Returns the new node pointer. On out of memory NULL is returned. */
-raxNode *raxNewNode(size_t children, int datafield) {
+raxNode *raxNewNode(size_t children, int datafield) {//创建一个基数树节点
     size_t nodesize = sizeof(raxNode)+children+raxPadding(children)+
-                      sizeof(raxNode*)*children;
-    if (datafield) nodesize += sizeof(void*);
+                      sizeof(raxNode*)*children;//非压缩
+    if (datafield) nodesize += sizeof(void*);//增加数据指针
     raxNode *node = rax_malloc(nodesize);
     if (node == NULL) return NULL;
     node->iskey = 0;
     node->isnull = 0;
     node->iscompr = 0;
-    node->size = children;
+    node->size = children;//存的是儿子的大小
     return node;
 }
 
 /* Allocate a new rax and return its pointer. On out of memory the function
  * returns NULL. */
-rax *raxNew(void) {
+rax *raxNew(void) {//创建一个基数树
     rax *rax = rax_malloc(sizeof(*rax));
     if (rax == NULL) return NULL;
     rax->numele = 0;
@@ -216,14 +216,14 @@ rax *raxNew(void) {
  * to store an item in that node. On out of memory NULL is returned. */
 raxNode *raxReallocForData(raxNode *n, void *data) {
     if (data == NULL) return n; /* No reallocation needed, setting isnull=1 */
-    size_t curlen = raxNodeCurrentLength(n);
+    size_t curlen = raxNodeCurrentLength(n);//当前大小
     return rax_realloc(n,curlen+sizeof(void*));
 }
 
 /* Set the node auxiliary data to the specified pointer. */
 void raxSetData(raxNode *n, void *data) {
     n->iskey = 1;
-    if (data != NULL) {
+    if (data != NULL) {//存入指针
         n->isnull = 0;
         void **ndata = (void**)
             ((char*)n+raxNodeCurrentLength(n)-sizeof(void*));
@@ -234,7 +234,7 @@ void raxSetData(raxNode *n, void *data) {
 }
 
 /* Get the node auxiliary data. */
-void *raxGetData(raxNode *n) {
+void *raxGetData(raxNode *n) {//取得data
     if (n->isnull) return NULL;
     void **ndata =(void**)((char*)n+raxNodeCurrentLength(n)-sizeof(void*));
     void *data;

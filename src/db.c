@@ -318,11 +318,11 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
     serverAssert(o->type == OBJ_STRING);
     if (o->refcount != 1 || o->encoding != OBJ_ENCODING_RAW) {
         robj *decoded = getDecodedObject(o);
-        o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));
-        decrRefCount(decoded);
-        dbOverwrite(db,key,o);
+        o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));//创建一个新的对象
+        decrRefCount(decoded);//原来的引用计数减1
+        dbOverwrite(db,key,o);//更新键值
     }
-    return o;
+    return o;//不共享，直接返回
 }
 
 /* Remove all keys from all the databases in a Redis server.
@@ -1094,12 +1094,12 @@ long long getExpire(redisDb *db, robj *key) {
 
     /* No expire? return ASAP */
     if (dictSize(db->expires) == 0 ||
-       (de = dictFind(db->expires,key->ptr)) == NULL) return -1;
+       (de = dictFind(db->expires,key->ptr)) == NULL) return -1;//尝试在过期字典中找到键
 
     /* The entry was found in the expire dict, this means it should also
      * be present in the main dict (safety check). */
-    serverAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
-    return dictGetSignedIntegerVal(de);
+    serverAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);//字典中找到
+    return dictGetSignedIntegerVal(de);//以64位整数返回
 }
 
 /* Propagate expires into slaves and the AOF file.
@@ -1113,14 +1113,14 @@ long long getExpire(redisDb *db, robj *key) {
 void propagateExpire(redisDb *db, robj *key, int lazy) {
     robj *argv[2];
 
-    argv[0] = lazy ? shared.unlink : shared.del;
+    argv[0] = lazy ? shared.unlink : shared.del;//解除链接还是删除
     argv[1] = key;
-    incrRefCount(argv[0]);
+    incrRefCount(argv[0]);//增加引用计数
     incrRefCount(argv[1]);
 
     if (server.aof_state != AOF_OFF)
-        feedAppendOnlyFile(server.delCommand,db->id,argv,2);
-    replicationFeedSlaves(server.slaves,db->id,argv,2);
+        feedAppendOnlyFile(server.delCommand,db->id,argv,2);//AOF持久化
+    replicationFeedSlaves(server.slaves,db->id,argv,2);//复制
 
     decrRefCount(argv[0]);
     decrRefCount(argv[1]);
@@ -1128,7 +1128,7 @@ void propagateExpire(redisDb *db, robj *key, int lazy) {
 
 /* Check if the key is expired. */
 int keyIsExpired(redisDb *db, robj *key) {
-    mstime_t when = getExpire(db,key);
+    mstime_t when = getExpire(db,key);//获取键值过期时间
 
     if (when < 0) return 0; /* No expire for this key */
 
@@ -1140,9 +1140,9 @@ int keyIsExpired(redisDb *db, robj *key) {
      * only the first time it is accessed and not in the middle of the
      * script execution, making propagation to slaves / AOF consistent.
      * See issue #1525 on Github for more information. */
-    mstime_t now = server.lua_caller ? server.lua_time_start : mstime();
+    mstime_t now = server.lua_caller ? server.lua_time_start : mstime();//如果是在lua脚本中，则现在时间为脚本开始时间
 
-    return now > when;
+    return now > when;//是否过期
 }
 
 /* This function is called when we are going to perform some operation
@@ -1165,7 +1165,7 @@ int keyIsExpired(redisDb *db, robj *key) {
  * The return value of the function is 0 if the key is still valid,
  * otherwise the function returns 1 if the key is expired. */
 int expireIfNeeded(redisDb *db, robj *key) {
-    if (!keyIsExpired(db,key)) return 0;
+    if (!keyIsExpired(db,key)) return 0;//键是否过期
 
     /* If we are running in the context of a slave, instead of
      * evicting the expired key from the database, we return ASAP:
@@ -1174,12 +1174,12 @@ int expireIfNeeded(redisDb *db, robj *key) {
      *
      * Still we try to return the right information to the caller,
      * that is, 0 if we think the key should be still valid, 1 if
-     * we think the key is expired at this time. */
+     * we think the key is expired at this time. *///在从服务器中时不删除，返回ASAP，由主服务器发送删除命令
     if (server.masterhost != NULL) return 1;
 
     /* Delete the key */
     server.stat_expiredkeys++;
-    propagateExpire(db,key,server.lazyfree_lazy_expire);
+    propagateExpire(db,key,server.lazyfree_lazy_expire);//
     notifyKeyspaceEvent(NOTIFY_EXPIRED,
         "expired",key,db->id);
     return server.lazyfree_lazy_expire ? dbAsyncDelete(db,key) :

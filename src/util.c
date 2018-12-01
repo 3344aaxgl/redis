@@ -291,7 +291,7 @@ int ll2string(char *dst, size_t dstlen, long long svalue) {
         if (svalue != LLONG_MIN) {
             value = -svalue;
         } else {
-            value = ((unsigned long long) LLONG_MAX)+1;
+            value = ((unsigned long long) LLONG_MAX)+1;//越界了
         }
         negative = 1;
     } else {
@@ -300,14 +300,14 @@ int ll2string(char *dst, size_t dstlen, long long svalue) {
     }
 
     /* Check length. */
-    uint32_t const length = digits10(value)+negative;
+    uint32_t const length = digits10(value)+negative;//返回存储数字需要的空间
     if (length >= dstlen) return 0;
 
     /* Null term. */
     uint32_t next = length;
     dst[next] = '\0';
     next--;
-    while (value >= 100) {
+    while (value >= 100) {//整个digits是以2位来表示整数的
         int const i = (value % 100) * 2;
         value /= 100;
         dst[next] = digits[i + 1];
@@ -316,16 +316,16 @@ int ll2string(char *dst, size_t dstlen, long long svalue) {
     }
 
     /* Handle last 1-2 digits. */
-    if (value < 10) {
+    if (value < 10) {//处理最后的1位
         dst[next] = '0' + (uint32_t) value;
-    } else {
+    } else {//最后是2位
         int i = (uint32_t) value * 2;
         dst[next] = digits[i + 1];
         dst[next - 1] = digits[i];
     }
 
     /* Add sign. */
-    if (negative) dst[0] = '-';
+    if (negative) dst[0] = '-';//负数
     return length;
 }
 
